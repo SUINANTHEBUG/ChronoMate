@@ -3,38 +3,38 @@
 ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (DANN)** to predict developmental time points from single-cell RNA-seq data while correcting cross-dataset batch effects.
 
 ---
-<pre><code>## Installation
+## Installation
 
 ### 1. Create a virtual environment
-
+<pre><code>
 # Windows (PowerShell)
 python -m venv .venv
 
 # macOS/Linux
 python3 -m venv .venv
-
+<pre><code>
 
 ### 2. Activate the virtual environment
-
+<pre><code>
 # Windows (PowerShell)
 .\.venv\Scripts\Activate
 
 # macOS/Linux
 source .venv/bin/activate
-
+<pre><code>
 
 ### 3. Install dependencies
-
+<pre><code>
 pip install -r requirements.txt
-
+<pre><code>
 
 ### 4. (Optional) Install the package itself
-
+<pre><code>
 pip install .
-
+<pre><code>
 
 ### 5. Verify installation
-
+<pre><code>
 # Should print a help message with available commands
 python -m chronomate.cli --help
 </code></pre>
