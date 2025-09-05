@@ -19,17 +19,17 @@ ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (D
 
 ---
 
-## Example Result
+## Example
 
 ChronoMate aligns predicted and actual developmental time with high accuracy:
+Train Data: Drosophila visual system snRNA-seq data, with time points from 0 to 96h in 12h increments ([Kurmangaliev et al., 2020](https://www.cell.com/neuron/fulltext/S0896-6273(20)30774-1?dgcid=raven_jbs_aip_email))
+Test Data: Drosophila visual system snRNA-seq data, with time points 15h, 30h, 40h, 50h and 70h ([Özel et al., 2021](https://www.nature.com/articles/s41586-020-2879-3))
 
 ![Figure 3 — Predicted vs. Actual](./Figure3.png)
 
-(Place Figure3.png in the repo root next to README.md. If you keep it under assets/, change the path to assets/Figure3.png.)
-
 ---
 
-## Quick Usage
+## Quick Start
 
 Inputs can be `.h5ad` (AnnData) or `.csv`.
 
@@ -54,7 +54,7 @@ Baseline XGBoost:
 
 ---
 
-## What It Does (brief)
+## What It Does
 
 - Domain-adversarial training reduces batch effects.
 - 10-dim cell-type embedding concatenated to scaled gene features.
@@ -78,7 +78,7 @@ Baseline XGBoost:
 ## Datasets to Cite
 
 - Kurmangaliyev, Yerbol Z., et al. "Transcriptional programs of circuit assembly in the Drosophila visual system." Neuron 108.6 (2020): 1045-1057.
-- Lago-Baldaia, Inês, et al. "A Drosophila glial cell atlas reveals a mismatch between transcriptional and morphological diversity." PLoS biology 21.10 (2023): e3002328.
+- Özel, Mehmet Neset, et al. "Neuronal diversity and convergence in a visual system developmental atlas." Nature 589.7840 (2021): 88-95.
 - Cui, Yingjun, Susanta K. Behura, and Alexander WE Franz. "Cellular diversity and gene expression profiles in the male and female brain of Aedes aegypti." BMC genomics 23.1 (2022): 119.
 
 ---
