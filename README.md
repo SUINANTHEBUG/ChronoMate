@@ -6,16 +6,21 @@ ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (D
 
 ## Installation
 
-(Use either requirements or your own environment. Example with a virtual env:)
+### Windows (PowerShell)
 
-    python -m venv .venv
-    # Windows PowerShell:
-    .venv\Scripts\Activate
-    # macOS/Linux:
-    # source .venv/bin/activate
-    pip install -r requirements.txt
-    # or if installing the package itself:
-    # pip install .
+python -m venv .venv
+.venv\Scripts\Activate
+pip install -r requirements.txt
+# or if installing the package itself:
+# pip install .
+
+### macOS/Linux
+
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+# or if installing the package itself:
+# pip install .
 
 ---
 
@@ -76,7 +81,7 @@ Baseline XGBoost:
 
 ---
 
-## Datasets to Cite
+## Reference
 
 - Kurmangaliyev, Yerbol Z., et al. "Transcriptional programs of circuit assembly in the Drosophila visual system." Neuron 108.6 (2020): 1045-1057.
 - Özel, Mehmet Neset, et al. "Neuronal diversity and convergence in a visual system developmental atlas." Nature 589.7840 (2021): 88-95.
