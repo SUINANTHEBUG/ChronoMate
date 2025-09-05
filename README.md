@@ -12,7 +12,7 @@ python -m venv .venv
 
 # macOS/Linux
 python3 -m venv .venv
-<pre><code>
+</code></pre>
 
 ### 2. Activate the virtual environment
 <pre><code>
@@ -21,17 +21,17 @@ python3 -m venv .venv
 
 # macOS/Linux
 source .venv/bin/activate
-<pre><code>
+</code></pre>
 
 ### 3. Install dependencies
 <pre><code>
 pip install -r requirements.txt
-<pre><code>
+</code></pre>
 
 ### 4. (Optional) Install the package itself
 <pre><code>
 pip install .
-<pre><code>
+</code></pre>
 
 ### 5. Verify installation
 <pre><code>
