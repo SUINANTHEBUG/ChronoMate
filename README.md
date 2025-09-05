@@ -11,16 +11,13 @@ ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (D
 python -m venv .venv
 .venv\Scripts\Activate
 pip install -r requirements.txt
-# or if installing the package itself:
-# pip install .
 
 ### macOS/Linux
 
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# or if installing the package itself:
-# pip install .
+
 
 ---
 
