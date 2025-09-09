@@ -12,6 +12,7 @@ ChronoMate aligns predicted and actual developmental time with high accuracy.
 **Test Data**: Drosophila visual system snRNA-seq data, with time points 15h, 30h, 40h, 50h and 70h ([Özel et al., 2021](https://www.nature.com/articles/s41586-020-2879-3))
 
 ![Figure 3 — Predicted vs. Actual](./Fig3.png)
+<img src="/Fig3.png" alt="drawing" width="200"/>
 
 ---
 ## Installation
