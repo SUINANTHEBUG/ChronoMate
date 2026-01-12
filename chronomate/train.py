@@ -94,7 +94,7 @@ def train_dann(
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.wd)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=cfg.epochs, eta_min=1e-6)
 
-    # ✅ Guard AMP on CUDA availability
+    # Guard AMP on CUDA availability
     use_amp = cfg.amp and torch.cuda.is_available()
     scaler_amp = torch.cuda.amp.GradScaler(enabled=use_amp)
 
@@ -122,7 +122,7 @@ def train_dann(
             alpha = dann_alpha(progress)
 
             opt.zero_grad(set_to_none=True)
-            # ✅ Use AMP only if CUDA is available
+            # Use AMP only if CUDA is available
             with torch.cuda.amp.autocast(enabled=use_amp):
                 y_pred_s, d_logits_s = model(xs, cts, alpha=alpha)
                 _y_pred_t, d_logits_t = model(xt, ctt, alpha=alpha)
