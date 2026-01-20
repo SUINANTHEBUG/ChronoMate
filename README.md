@@ -8,7 +8,7 @@ ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (D
 
 ChronoMate aligns predicted and actual developmental time with high accuracy.
 
-**Train Data**: Drosophila visual system snRNA-seq data, with time points from 0 to 96h in 12h increments ([Kurmangaliev et al., 2020](https://www.cell.com/neuron/fulltext/S0896-6273(20)30774-1?dgcid=raven_jbs_aip_email))  Dataset can be explored ([here](http://34.239.187.95:3838/test/)).
+**Train Data**: Drosophila visual system snRNA-seq data, with time points from 0 to 96h in 12h increments ([Kurmangaliev et al., 2020](https://www.cell.com/neuron/fulltext/S0896-6273(20)30774-1?dgcid=raven_jbs_aip_email))  Dataset can be explored [here](http://34.239.187.95:3838/test/).
 
 **Test Data**: Drosophila visual system snRNA-seq data, with time points 15h, 30h, 40h, 50h and 70h ([Özel et al., 2021](https://www.nature.com/articles/s41586-020-2879-3))
 
