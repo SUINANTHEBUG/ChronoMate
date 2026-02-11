@@ -1,18 +1,28 @@
 # ChronoMate
 
-ChronoMate is a Python package that uses **Domain-Adversarial Neural Networks (DANN)** to predict developmental time points from single-cell RNA-seq data while correcting cross-dataset batch effects.
+ChronoMate predicts Drosophila developmental time from single-cell RNA-seq across datasets/labs.
+
+Current stable workflow:
+- Train an XGBoost regressor on a labeled source dataset (TRAIN)
+- Transfer to a target dataset (TEST) using shared-gene alignment + train-based standardization
+- Evaluate with MAE and “nearest-allowed-time” accuracy
+- Visualize performance with the violin/mean/y=x plot (see Figure)
+
+Note: Some older parts of this repo may reference domain-adversarial training (DANN). The current stable pipeline is the XGBoost transfer method described below.
 
 ---
 
-## Example
+## Data sources (GEO)
 
 ChronoMate aligns predicted and actual developmental time with high accuracy.
 
-**Train Data**: Drosophila visual system snRNA-seq data, with time points from 0 to 96h in 12h increments ([Kurmangaliev et al., 2020](https://www.cell.com/neuron/fulltext/S0896-6273(20)30774-1?dgcid=raven_jbs_aip_email))  Dataset can be explored [here](http://34.239.187.95:3838/test/).
+TRAIN (source): Kurmangaliyev et al., Neuron 2020
+- GEO: GSE156455
+- Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
-**Test Data**: Drosophila visual system snRNA-seq data, with time points 15h, 30h, 40h, 50h and 70h ([Özel et al., 2021](https://www.nature.com/articles/s41586-020-2879-3))
-
-<img src="/Figure 3.png" alt="drawing" width="700"/>
+TEST (target): Özel et al., Nature 2021
+- GEO: GSE142787
+- Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
 ---
 ## Installation
@@ -29,7 +39,7 @@ python3 -m venv .venv
 ### 2. Activate the virtual environment
 <pre><code>
 # Windows (PowerShell)
-.\.venv\Scripts\Activate
+\.venv\Scripts\Activate
 
 # macOS/Linux
 source .venv/bin/activate
@@ -51,60 +61,76 @@ pip install .
 python -m chronomate.cli --help
 </code></pre>
 
+---
+
+## Method overview (XGBoost transfer)
+
+Inputs:
+- TRAIN CSV: cells x genes with labels
+  Required columns: cell_id, time
+  Optional columns: sample, type
+  Remaining columns: gene features (floats)
+
+- TEST CSV: cells x genes (time optional if you are predicting; required if you are evaluating)
+
+Training procedure:
+1) Feature alignment
+   - Compute the intersection of gene columns between TRAIN and TEST.
+   - Use only the shared gene set for modeling.
+
+2) Standardization (train-based)
+   - Compute mean and std for each gene using TRAIN only.
+   - Z-score TRAIN and TEST using those TRAIN statistics:
+       Xz = (X - mu_train) / sd_train
+
+3) Model fit
+   - Train XGBRegressor to predict time (in hours) from standardized gene features.
+   - Save:
+       - trained model (joblib)
+       - preprocessing bundle (genes + mu_train + sd_train)
+
+Evaluation procedure:
+- Predict continuous time for each TEST cell.
+- Report:
+  - MAE (hours)
+  - Nearest-allowed-time accuracy:
+      snap each prediction to the closest time in the TEST time grid (e.g., [15,30,40,50,70])
+      then compute accuracy and MAE on the snapped values.
 
 ---
 
-## Quick Start
+## Quick start
 
-Inputs can be `.h5ad` (AnnData) or `.csv`.
+Train:
+  python -m chronomate.cli train-xgb-zscore ^
+    --train "C:\2024 Fall\chronocell\dann_data\train.csv" ^
+    --test  "C:\2024 Fall\chronocell\GSE142787\test_gene_normalized.csv" ^
+    --outdir "C:\2024 Fall\chronocell\runs\xgb_zscore"
 
-- For `.h5ad`, pass the obs keys (e.g., `dev_time_h`, `cell_type`).
-- For `.csv`, columns may include `time` and `cell_type` (time can be absent for target/outside data).
+Evaluate + plots:
+  python -m chronomate.cli eval-xgb-zscore ^
+    --test "C:\2024 Fall\chronocell\GSE142787\test_gene_normalized.csv" ^
+    --model  "C:\2024 Fall\chronocell\runs\xgb_zscore\xgb_regressor_zscore.joblib" ^
+    --preproc "C:\2024 Fall\chronocell\runs\xgb_zscore\xgb_regressor_zscore_preproc.joblib" ^
+    --outdir "C:\2024 Fall\chronocell\runs\xgb_zscore\eval"
 
-Train DANN:
-
-    python -m chronomate.cli train-dann --source data/source.h5ad --target data/target.h5ad --obs-time-key dev_time_h --obs-celltype-key cell_type --outdir runs/dann_experiment
-
-Evaluate (writes metrics + parity plot if labels exist):
-
-    python -m chronomate.cli eval --checkpoint runs/dann_experiment/best.pt --data data/target.h5ad --obs-time-key dev_time_h --obs-celltype-key cell_type --outdir runs/dann_experiment/eval_target
-
-Predict only (no labels required):
-
-    python -m chronomate.cli predict --checkpoint runs/dann_experiment/best.pt --data data/outside.h5ad --obs-celltype-key cell_type --out preds.csv
-
-Baseline XGBoost:
-
-    python -m chronomate.cli train-xgb --source data/source.h5ad --target data/target.h5ad --obs-time-key dev_time_h --obs-celltype-key cell_type --outdir runs/xgb_experiment
+Outputs:
+- metrics printed to console
+- predictions CSV saved to disk
+- plots displayed and/or saved (depending on CLI flags)
 
 ---
 
-## What It Does
+## Figure
 
-- Domain-adversarial training reduces batch effects.
-- 10-dim cell-type embedding concatenated to scaled gene features.
-- Metrics & plots: RMSE, MAE, R²; parity plots.
-- Mixed precision by default (disable with `--no-amp`).
-- XGBoost baseline for comparison.
+![Figure 3: Predicted time vs actual time](./output_DAN_scVI.png)
 
 ---
 
-## Layout
+## References
 
-    chronomate/
-    ├─ data.py        # I/O, scaling, dataset
-    ├─ models.py      # DANN + Gradient Reversal + XGB wrapper
-    ├─ train.py       # training loops, checkpointing
-    ├─ evaluate.py    # metrics + plots + CSV export
-    └─ cli.py         # CLI entrypoints
-
----
-
-## Reference
-
-- Kurmangaliyev, Yerbol Z., et al. "Transcriptional programs of circuit assembly in the Drosophila visual system." Neuron 108.6 (2020): 1045-1057.
-- Özel, Mehmet Neset, et al. "Neuronal diversity and convergence in a visual system developmental atlas." Nature 589.7840 (2021): 88-95.
-- Cui, Yingjun, Susanta K. Behura, and Alexander WE Franz. "Cellular diversity and gene expression profiles in the male and female brain of Aedes aegypti." BMC genomics 23.1 (2022): 119.
+- Kurmangaliyev YZ et al. Transcriptional Programs of Circuit Assembly in the Drosophila Visual System. Neuron (2020). GEO: GSE156455
+- Özel MN et al. Neuronal diversity and convergence in a visual system developmental atlas. Nature (2021). GEO: GSE142787
 
 ---
 

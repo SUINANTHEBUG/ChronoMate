@@ -1,67 +1,56 @@
-import argparse, json
-from .train import train_dann, train_xgb, DANNConfig
-from .evaluate import eval_checkpoint, predict_dann
+import argparse
+import json
+from .train import train_xgb_zscore
+from .evaluate import eval_xgb_zscore
 
 
 def main():
-    p = argparse.ArgumentParser(prog="chronomate", description="ChronoMate – DANN pipeline for developmental time.")
+    p = argparse.ArgumentParser(
+        prog="chronomate",
+        description="ChronoMate – cross-dataset developmental time prediction (XGBoost transfer).",
+    )
     sp = p.add_subparsers(dest="cmd", required=True)
 
-    # train-dann
-    p_train = sp.add_parser("train-dann", help="Train a DANN model.")
-    p_train.add_argument("--source", required=True)
-    p_train.add_argument("--target", required=True)
-    p_train.add_argument("--obs-time-key", default=None)
-    p_train.add_argument("--obs-celltype-key", default=None)
+    # train-xgb-zscore
+    p_train = sp.add_parser("train-xgb-zscore", help="Train XGBoost with shared-gene alignment + train-based z-scoring.")
+    p_train.add_argument("--train", required=True, help="TRAIN csv (must include time column).")
+    p_train.add_argument("--test", default=None, help="Optional TEST csv used only to define shared genes.")
     p_train.add_argument("--outdir", required=True)
-    p_train.add_argument("--epochs", type=int, default=150)
-    p_train.add_argument("--batch-size", type=int, default=256)
-    p_train.add_argument("--lr", type=float, default=1e-4)
-    p_train.add_argument("--wd", type=float, default=1e-4)
-    p_train.add_argument("--seed", type=int, default=42)
-    p_train.add_argument("--no-amp", action="store_true")
+    p_train.add_argument("--time-col", default="time")
+    p_train.add_argument("--cell-id-col", default="cell_id")
+    p_train.add_argument("--type-col", default=None, help="Optional type column (not used by this trainer; reserved).")
 
-    # train-xgb
-    p_xgb = sp.add_parser("train-xgb", help="Train an XGBoost baseline.")
-    p_xgb.add_argument("--source", required=True)
-    p_xgb.add_argument("--target", default=None)
-    p_xgb.add_argument("--obs-time-key", default=None)
-    p_xgb.add_argument("--obs-celltype-key", default=None)
-    p_xgb.add_argument("--outdir", required=True)
-
-    # eval
-    p_eval = sp.add_parser("eval", help="Evaluate a DANN checkpoint on a dataset (writes metrics if labels exist).")
-    p_eval.add_argument("--checkpoint", required=True)
-    p_eval.add_argument("--data", required=True)
-    p_eval.add_argument("--obs-time-key", default=None)
-    p_eval.add_argument("--obs-celltype-key", default=None)
+    # eval-xgb-zscore
+    p_eval = sp.add_parser("eval-xgb-zscore", help="Evaluate XGBoost transfer model and generate plots.")
+    p_eval.add_argument("--test", required=True, help="TEST csv (time column required for metrics).")
+    p_eval.add_argument("--model", required=True, help="Path to model.joblib saved by train-xgb-zscore.")
+    p_eval.add_argument("--preproc", required=True, help="Path to preproc.joblib saved by train-xgb-zscore.")
     p_eval.add_argument("--outdir", required=True)
-
-    # predict
-    p_pred = sp.add_parser("predict", help="Predict only (no metrics).")
-    p_pred.add_argument("--checkpoint", required=True)
-    p_pred.add_argument("--data", required=True)
-    p_pred.add_argument("--obs-time-key", default=None)
-    p_pred.add_argument("--obs-celltype-key", default=None)
-    p_pred.add_argument("--out", required=True)
+    p_eval.add_argument("--time-col", default="time")
+    p_eval.add_argument("--cell-id-col", default="cell_id")
 
     args = p.parse_args()
-    if args.cmd == "train-dann":
-        cfg = DANNConfig(epochs=args.epochs, batch_size=args.batch_size, lr=args.lr, wd=args.wd, seed=args.seed, amp=not args.no_amp)
-        ckpt = train_dann(args.source, args.target, args.outdir, args.obs_time_key, args.obs_celltype_key, cfg)
-        print(ckpt)
-    elif args.cmd == "train-xgb":
-        path = train_xgb(args.source, args.target, args.outdir, args.obs_time_key, args.obs_celltype_key)
-        print(path)
-    elif args.cmd == "eval":
-        m = eval_checkpoint(args.checkpoint, args.data, args.outdir, args.obs_time_key, args.obs_celltype_key)
-        print(json.dumps(m, indent=2) if m else "Predictions written (no labels).")
-    elif args.cmd == "predict":
-        out = predict_dann(args.checkpoint, args.data, args.obs_time_key, args.obs_celltype_key)
-        import pandas as pd
-        df = pd.DataFrame({"cell": out["names"], "pred_h": out["pred"].reshape(-1)})
-        df.to_csv(args.out, index=False)
-        print(args.out)
+
+    if args.cmd == "train-xgb-zscore":
+        out = train_xgb_zscore(
+            train_csv=args.train,
+            test_csv=args.test,
+            outdir=args.outdir,
+            time_col=args.time_col,
+            cell_id_col=args.cell_id_col,
+        )
+        print(json.dumps(out, indent=2))
+
+    elif args.cmd == "eval-xgb-zscore":
+        m = eval_xgb_zscore(
+            test_csv=args.test,
+            model_path=args.model,
+            preproc_path=args.preproc,
+            outdir=args.outdir,
+            time_col=args.time_col,
+            cell_id_col=args.cell_id_col,
+        )
+        print(json.dumps(m, indent=2))
 
 
 if __name__ == "__main__":
