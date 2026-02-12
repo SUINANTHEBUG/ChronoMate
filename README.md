@@ -1,123 +1,161 @@
 # ChronoMate
 
-ChronoMate predicts Drosophila developmental time from single-cell RNA-seq across datasets/labs.
+ChronoMate predicts **Drosophila developmental time** from **single-cell RNA-seq** and transfers that predictor across datasets/labs.
 
-Current stable workflow:
-- Train an XGBoost regressor on a labeled source dataset (TRAIN)
-- Transfer to a target dataset (TEST) using shared-gene alignment + train-based standardization
-- Evaluate with MAE and “nearest-allowed-time” accuracy
-- Visualize performance with the violin/mean/y=x plot (see Figure)
+The current pipeline is:
 
-Note: Some older parts of this repo may reference domain-adversarial training (DANN). The current stable pipeline is the XGBoost transfer method described below.
+1. **Prepare raw-count AnnData (`.h5ad`)** for TRAIN and TEST  
+2. **Normalize / integrate with scVI** (train reference → map test)  
+3. **Train a regressor (XGBoost) on scVI latent** to predict time (hours)  
+4. **Evaluate + plot** (MAE, nearest-allowed-time accuracy, violin + mean + y=x)
+
+> Note: Older parts of this repo may reference domain-adversarial training (DANN). The stable workflow is **scVI → XGBoost**.
 
 ---
 
 ## Data sources (GEO)
 
-ChronoMate aligns predicted and actual developmental time with high accuracy.
-
-TRAIN (source): Kurmangaliyev et al., Neuron 2020
-- GEO: GSE156455
+**TRAIN (source):** Kurmangaliyev et al., Neuron 2020  
+- GEO: GSE156455  
 - Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
-TEST (target): Özel et al., Nature 2021
-- GEO: GSE142787
+**TEST (target):** Özel et al., Nature 2021  
+- GEO: GSE142787  
 - Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
 ---
+
+## What “normalization” means here
+
+This project uses **scVI (scvi-tools)** for normalization / batch-aware representation learning.
+
+- **Input to scVI:** raw counts (nonnegative) in `adata.layers["counts"]`
+- **Output used for prediction:** latent embeddings `Z` (cells × latent_dim)
+- **Optional output:** model-based normalized expression (large; not required for XGBoost)
+
+The regressor does **not** train directly on raw counts. It trains on **scVI latent**.
+
+---
+
 ## Installation
 
-### 1. Create a virtual environment
-<pre><code>
+### 1) Create a virtual environment
+
+```bash
 # Windows (PowerShell)
 python -m venv .venv
 
 # macOS/Linux
 python3 -m venv .venv
-</code></pre>
+```
 
-### 2. Activate the virtual environment
-<pre><code>
+### 2) Activate
+
+```bash
 # Windows (PowerShell)
-\.venv\Scripts\Activate
+.\.venv\Scripts\Activate
 
 # macOS/Linux
 source .venv/bin/activate
-</code></pre>
+```
 
-### 3. Install dependencies
-<pre><code>
+### 3) Install dependencies
+
+```bash
 pip install -r requirements.txt
-</code></pre>
+```
 
-### 4. (Optional) Install the package itself
-<pre><code>
+### 4) (Optional) Install the package
+
+```bash
 pip install .
-</code></pre>
+```
 
-### 5. Verify installation
-<pre><code>
-# Should print a help message with available commands
+### 5) Verify
+
+```bash
 python -m chronomate.cli --help
-</code></pre>
+```
 
 ---
 
-## Method overview (XGBoost transfer)
+## Inputs
 
-Inputs:
-- TRAIN CSV: cells x genes with labels
-  Required columns: cell_id, time
-  Optional columns: sample, type
-  Remaining columns: gene features (floats)
+ChronoMate expects **AnnData `.h5ad`** inputs for both TRAIN and TEST, with:
 
-- TEST CSV: cells x genes (time optional if you are predicting; required if you are evaluating)
+- `adata.layers["counts"]`: raw counts (sparse OK)
+- `adata.obs["time"]`: time label  
+  - TRAIN time can be `"48h"` or `48` (converted to numeric hours internally)  
+  - TEST time is optional (required for evaluation/plots)
 
-Training procedure:
-1) Feature alignment
-   - Compute the intersection of gene columns between TRAIN and TEST.
-   - Use only the shared gene set for modeling.
+Recommended filenames (example):
 
-2) Standardization (train-based)
-   - Compute mean and std for each gene using TRAIN only.
-   - Z-score TRAIN and TEST using those TRAIN statistics:
-       Xz = (X - mu_train) / sd_train
-
-3) Model fit
-   - Train XGBRegressor to predict time (in hours) from standardized gene features.
-   - Save:
-       - trained model (joblib)
-       - preprocessing bundle (genes + mu_train + sd_train)
-
-Evaluation procedure:
-- Predict continuous time for each TEST cell.
-- Report:
-  - MAE (hours)
-  - Nearest-allowed-time accuracy:
-      snap each prediction to the closest time in the TEST time grid (e.g., [15,30,40,50,70])
-      then compute accuracy and MAE on the snapped values.
+- TRAIN: `GSE156455/processed_train_counts.h5ad`
+- TEST:  `GSE142787/processed_test_counts.h5ad`
 
 ---
 
-## Quick start
+## Method overview (scVI → XGBoost)
 
-Train:
-  python -m chronomate.cli train-xgb-zscore ^
-    --train "C:\2024 Fall\chronocell\dann_data\train.csv" ^
-    --test  "C:\2024 Fall\chronocell\GSE142787\test_gene_normalized.csv" ^
-    --outdir "C:\2024 Fall\chronocell\runs\xgb_zscore"
+### Step 1 — scVI reference + query mapping
 
-Evaluate + plots:
-  python -m chronomate.cli eval-xgb-zscore ^
-    --test "C:\2024 Fall\chronocell\GSE142787\test_gene_normalized.csv" ^
-    --model  "C:\2024 Fall\chronocell\runs\xgb_zscore\xgb_regressor_zscore.joblib" ^
-    --preproc "C:\2024 Fall\chronocell\runs\xgb_zscore\xgb_regressor_zscore_preproc.joblib" ^
-    --outdir "C:\2024 Fall\chronocell\runs\xgb_zscore\eval"
+Train scVI on TRAIN counts (reference), then map TEST into the same latent space (query).
 
 Outputs:
-- metrics printed to console
-- predictions CSV saved to disk
-- plots displayed and/or saved (depending on CLI flags)
+- `scvi_model/`
+- `train_latent.csv`
+- `test_latent.csv`
+
+### Step 2 — Train regressor and predict
+
+Train XGBoost on TRAIN latent `Z_train → time_hours`, then predict on TEST latent `Z_test`.
+
+Output:
+- `predictions.csv` with:
+  - `cell_id`
+  - `predicted_time`
+  - (optional) `time` if TEST labels exist
+
+### Step 3 — Evaluate + plots
+
+If TEST contains `obs["time"]`, the evaluation reports:
+- MAE (hours)
+- Nearest-allowed-time accuracy (snap each prediction to nearest test timepoint)
+
+Plots saved to output directory:
+- `scatter_mean.png`
+- `boxplot_by_time.png`
+- `Figure 3.png` (violin + mean + y=x)
+
+---
+
+## Quick start (CLI)
+
+### 1) Run scVI normalization + latent export
+
+```bash
+python -m chronomate.cli scvi-normalize ^
+  --train "C:\2024 Fall\chronocell\GSE156455\processed_train_counts.h5ad" ^
+  --test  "C:\2024 Fall\chronocell\GSE142787\processed_test_counts.h5ad" ^
+  --outdir "C:\2024 Fall\chronocell\runs\scvi_ref"
+```
+
+### 2) Train XGBoost on scVI latent + predict TEST
+
+```bash
+python -m chronomate.cli train-xgb-latent ^
+  --train-latent "C:\2024 Fall\chronocell\runs\scvi_ref\train_latent.csv" ^
+  --test-latent  "C:\2024 Fall\chronocell\runs\scvi_ref\test_latent.csv" ^
+  --outdir "C:\2024 Fall\chronocell\runs\scvi_xgb"
+```
+
+### 3) Evaluate + generate plots
+
+```bash
+python -m chronomate.cli eval ^
+  --predictions "C:\2024 Fall\chronocell\runs\scvi_xgb\predictions.csv" ^
+  --outdir "C:\2024 Fall\chronocell\runs\scvi_xgb\eval"
+```
 
 ---
 
@@ -127,10 +165,16 @@ Outputs:
 
 ---
 
+## Notes on the legacy CSV z-score workflow
+
+If you see CSV matrices with many negatives and max values exactly `10`, those are likely **z-scored / clipped** features (e.g., `sc.pp.scale(..., max_value=10)`). Those are **not** valid scVI inputs. scVI requires raw counts.
+
+---
+
 ## References
 
-- Kurmangaliyev YZ et al. Transcriptional Programs of Circuit Assembly in the Drosophila Visual System. Neuron (2020). GEO: GSE156455
-- Özel MN et al. Neuronal diversity and convergence in a visual system developmental atlas. Nature (2021). GEO: GSE142787
+- Kurmangaliyev YZ et al. *Transcriptional Programs of Circuit Assembly in the Drosophila Visual System.* Neuron (2020). GEO: GSE156455  
+- Özel MN et al. *Neuronal diversity and convergence in a visual system developmental atlas.* Nature (2021). GEO: GSE142787  
 
 ---
 
