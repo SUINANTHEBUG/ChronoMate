@@ -1,6 +1,7 @@
 from __future__ import annotations
+
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -16,23 +17,27 @@ def _snap_to_allowed(pred: np.ndarray, allowed: np.ndarray) -> np.ndarray:
 def eval_and_plot(
     predictions_csv: str,
     outdir: str,
+    *,
     time_col: str = "time",
     pred_col: str = "predicted_time",
-    time_adjustments: Optional[Dict[float, float]] = None,  # if you insist on doing this
+    time_adjustments: Optional[Dict[float, float]] = None,  # optional manual bias tweak
 ) -> Dict[str, Any]:
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(predictions_csv)
-
     for c in [time_col, pred_col]:
         if c not in df.columns:
-            raise ValueError(f"Missing required column '{c}' in {predictions_csv}. Found: {list(df.columns)}")
+            raise ValueError(
+                f"Missing required column '{c}' in {predictions_csv}. "
+                f"Found: {list(df.columns)}"
+            )
 
-    # optional “manual bias correction”
+    # Optional manual “bias correction”
     if time_adjustments:
+        ytmp = df[time_col].astype(float)
         for t, adj in time_adjustments.items():
-            m = df[time_col].astype(float) == float(t)
+            m = (ytmp == float(t))
             df.loc[m, pred_col] = df.loc[m, pred_col].astype(float) + float(adj)
 
     y = df[time_col].astype(float).to_numpy()
@@ -45,17 +50,21 @@ def eval_and_plot(
     snap_acc = float((pred_snap == y).mean())
     snap_mae = float(mean_absolute_error(y, pred_snap))
 
-    # per-time summary
     dfp = pd.DataFrame({"true_time": y, "pred_time": pred})
-    summary = dfp.groupby("true_time").agg(
-        n_cells=("pred_time", "size"),
-        mean_pred=("pred_time", "mean"),
-        median_pred=("pred_time", "median"),
-        std_pred=("pred_time", "std"),
-    ).reset_index().sort_values("true_time")
+    summary = (
+        dfp.groupby("true_time")
+        .agg(
+            n_cells=("pred_time", "size"),
+            mean_pred=("pred_time", "mean"),
+            median_pred=("pred_time", "median"),
+            std_pred=("pred_time", "std"),
+        )
+        .reset_index()
+        .sort_values("true_time")
+    )
     summary.to_csv(outdir / "per_time_summary.csv", index=False)
 
-    # Scatter
+    # ---- Plot 1: scatter true vs pred + mean points ----
     plt.figure()
     plt.scatter(y, pred, s=3, alpha=0.12)
     mean_pts = summary[["true_time", "mean_pred"]].to_numpy()
@@ -70,11 +79,11 @@ def eval_and_plot(
     plt.savefig(outdir / "scatter_mean.png", dpi=180)
     plt.close()
 
-    # Boxplot
+    # ---- Plot 2: boxplot predicted distribution per true time ----
     order = sorted(dfp["true_time"].unique())
     data = [dfp.loc[dfp["true_time"] == t, "pred_time"].values for t in order]
     plt.figure()
-    plt.boxplot(data, labels=[str(int(t)) for t in order], showfliers=False)
+    plt.boxplot(data, labels=[str(int(t)) if float(t).is_integer() else str(t) for t in order], showfliers=False)
     plt.xlabel("True timepoint")
     plt.ylabel("Predicted time")
     plt.title("Predicted distribution by true timepoint")
@@ -82,7 +91,7 @@ def eval_and_plot(
     plt.savefig(outdir / "boxplot_by_time.png", dpi=180)
     plt.close()
 
-    # Violin (your Figure 3 style)
+    # ---- Plot 3: violin (Figure 3 style) ----
     times = order
     violin_data = [dfp.loc[dfp["true_time"] == t, "pred_time"].values for t in times]
     avg_predicted = [float(np.mean(v)) for v in violin_data]
@@ -124,7 +133,7 @@ def eval_and_plot(
         "predictions_csv": str(Path(predictions_csv)),
         "outdir": str(outdir),
     }
-    (outdir / "metrics.json").write_text(pd.Series(metrics).to_json(indent=2), encoding="utf-8")
+    (outdir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     print("MAE (hours):", mae)
     print("Nearest-allowed accuracy:", snap_acc)

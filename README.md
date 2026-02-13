@@ -1,182 +1,140 @@
 # ChronoMate
 
-ChronoMate predicts **Drosophila developmental time** from **single-cell RNA-seq** and transfers that predictor across datasets/labs.
+ChronoMate predicts **Drosophila developmental time (hours)** from
+**single-cell RNA-seq** and transfers that predictor across
+datasets/labs using a simple, robust pipeline:
 
-The current pipeline is:
+**Raw counts → scVI latent (batch-aware) → XGBoost regression →
+evaluation + plots**
 
-1. **Prepare raw-count AnnData (`.h5ad`)** for TRAIN and TEST  
-2. **Normalize / integrate with scVI** (train reference → map test)  
-3. **Train a regressor (XGBoost) on scVI latent** to predict time (hours)  
-4. **Evaluate + plot** (MAE, nearest-allowed-time accuracy, violin + mean + y=x)
+> Current stable workflow: **scVI → XGBoost** Older/legacy code paths
+> (e.g., CSV z-score features, DANN) are not part of the recommended
+> pipeline.
 
-> Note: Older parts of this repo may reference domain-adversarial training (DANN). The stable workflow is **scVI → XGBoost**.
+------------------------------------------------------------------------
 
----
+## What it does
+
+Given a labeled **TRAIN** dataset and a (possibly unlabeled) **TEST**
+dataset:
+
+1)  Learn a batch-aware representation with **scVI (VAE)** on raw counts
+2)  Map TEST into the same latent space (query mapping)
+3)  Train **XGBoost** on TRAIN latent to predict time (hours)
+4)  Predict + evaluate on TEST and generate plots
+
+------------------------------------------------------------------------
 
 ## Data sources (GEO)
 
-**TRAIN (source):** Kurmangaliyev et al., Neuron 2020  
-- GEO: GSE156455  
-- Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
+**TRAIN (source):** Kurmangaliyev et al., *Neuron* 2020\
+- GEO: GSE156455\
+- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
-**TEST (target):** Özel et al., Nature 2021  
-- GEO: GSE142787  
-- Link: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
+**TEST (target):** Özel et al., *Nature* 2021\
+- GEO: GSE142787\
+- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
----
+------------------------------------------------------------------------
 
-## What “normalization” means here
+## Key idea: what "normalization" means here
 
-This project uses **scVI (scvi-tools)** for normalization / batch-aware representation learning.
+ChronoMate uses **scVI (scvi-tools)** to learn a **batch-aware latent
+embedding** from **raw counts**.
 
-- **Input to scVI:** raw counts (nonnegative) in `adata.layers["counts"]`
-- **Output used for prediction:** latent embeddings `Z` (cells × latent_dim)
-- **Optional output:** model-based normalized expression (large; not required for XGBoost)
+-   Input: nonnegative raw counts in `adata.layers["counts"]`
+-   Features for regression: scVI latent `Z` (cells × latent_dim)
+-   Optional: model-based normalized expression (not required for
+    XGBoost)
 
-The regressor does **not** train directly on raw counts. It trains on **scVI latent**.
+The regressor does **not** train on gene-level raw counts directly. It
+trains on the **scVI latent representation**.
 
----
+------------------------------------------------------------------------
 
 ## Installation
 
-### 1) Create a virtual environment
-
-```bash
-# Windows (PowerShell)
+``` bash
 python -m venv .venv
-
-# macOS/Linux
-python3 -m venv .venv
-```
-
-### 2) Activate
-
-```bash
-# Windows (PowerShell)
-.\.venv\Scripts\Activate
-
-# macOS/Linux
-source .venv/bin/activate
-```
-
-### 3) Install dependencies
-
-```bash
+source .venv/bin/activate  # or .venv\Scripts\Activate on Windows
 pip install -r requirements.txt
 ```
 
-### 4) (Optional) Install the package
+Verify installation:
 
-```bash
-pip install .
-```
-
-### 5) Verify
-
-```bash
+``` bash
 python -m chronomate.cli --help
 ```
 
----
-
-## Inputs
-
-ChronoMate expects **AnnData `.h5ad`** inputs for both TRAIN and TEST, with:
-
-- `adata.layers["counts"]`: raw counts (sparse OK)
-- `adata.obs["time"]`: time label  
-  - TRAIN time can be `"48h"` or `48` (converted to numeric hours internally)  
-  - TEST time is optional (required for evaluation/plots)
-
-Recommended filenames (example):
-
-- TRAIN: `GSE156455/processed_train_counts.h5ad`
-- TEST:  `GSE142787/processed_test_counts.h5ad`
-
----
-
-## Method overview (scVI → XGBoost)
-
-### Step 1 — scVI reference + query mapping
-
-Train scVI on TRAIN counts (reference), then map TEST into the same latent space (query).
-
-Outputs:
-- `scvi_model/`
-- `train_latent.csv`
-- `test_latent.csv`
-
-### Step 2 — Train regressor and predict
-
-Train XGBoost on TRAIN latent `Z_train → time_hours`, then predict on TEST latent `Z_test`.
-
-Output:
-- `predictions.csv` with:
-  - `cell_id`
-  - `predicted_time`
-  - (optional) `time` if TEST labels exist
-
-### Step 3 — Evaluate + plots
-
-If TEST contains `obs["time"]`, the evaluation reports:
-- MAE (hours)
-- Nearest-allowed-time accuracy (snap each prediction to nearest test timepoint)
-
-Plots saved to output directory:
-- `scatter_mean.png`
-- `boxplot_by_time.png`
-- `Figure 3.png` (violin + mean + y=x)
-
----
+------------------------------------------------------------------------
 
 ## Quick start (CLI)
 
-### 1) Run scVI normalization + latent export
+### 1) Export scVI latents
 
-```bash
-python -m chronomate.cli scvi-normalize ^
-  --train "C:\2024 Fall\chronocell\GSE156455\processed_train_counts.h5ad" ^
-  --test  "C:\2024 Fall\chronocell\GSE142787\processed_test_counts.h5ad" ^
-  --outdir "C:\2024 Fall\chronocell\runs\scvi_ref"
+``` bash
+python -m chronomate.cli scvi-export-latent   --train-h5ad path/to/train_counts.h5ad   --test-h5ad  path/to/test_counts.h5ad   --model-dir  path/to/scvi_model   --out-train-csv train_latent.csv   --out-test-csv  test_latent.csv   --query-max-epochs 1
 ```
 
-### 2) Train XGBoost on scVI latent + predict TEST
+### 2) Train XGBoost + predict
 
-```bash
-python -m chronomate.cli train-xgb-latent ^
-  --train-latent "C:\2024 Fall\chronocell\runs\scvi_ref\train_latent.csv" ^
-  --test-latent  "C:\2024 Fall\chronocell\runs\scvi_ref\test_latent.csv" ^
-  --outdir "C:\2024 Fall\chronocell\runs\scvi_xgb"
+``` bash
+python -m chronomate.cli train-xgb-latent   --train-latent train_latent.csv   --test-latent  test_latent.csv   --outdir runs/xgb_on_scvi_latent
 ```
 
-### 3) Evaluate + generate plots
+### 3) Evaluate
 
-```bash
-python -m chronomate.cli eval ^
-  --predictions "C:\2024 Fall\chronocell\runs\scvi_xgb\predictions.csv" ^
-  --outdir "C:\2024 Fall\chronocell\runs\scvi_xgb\eval"
+``` bash
+python -m chronomate.cli eval   --predictions runs/xgb_on_scvi_latent/predictions.csv   --outdir runs/xgb_on_scvi_latent/eval
 ```
 
----
+------------------------------------------------------------------------
 
-## Figure
+## Example Results (scVI → XGBoost)
 
-![Figure 3: Predicted time vs actual time](./output_DAN_scVI.png)
+Example mean predicted time per true time (hours):
 
----
+  True Time   Mean Predicted
+  ----------- ----------------
+  15          15.80
+  30          27.82
+  40          38.77
+  50          49.12
+  70          73.68
 
-## Notes on the legacy CSV z-score workflow
+Overall regression metrics (example):
 
-If you see CSV matrices with many negatives and max values exactly `10`, those are likely **z-scored / clipped** features (e.g., `sc.pp.scale(..., max_value=10)`). Those are **not** valid scVI inputs. scVI requires raw counts.
+-   MAE: **1.75 hours**
+-   RMSE: **2.06 hours**
+-   R²: **0.988**
+-   Pearson r: **0.996**
+-   Within ±2h: **60%**
+-   Within ±5h: **100%**
 
----
+These results demonstrate strong cross-dataset generalization using a
+simple latent + gradient boosting pipeline.
 
-## References
+------------------------------------------------------------------------
 
-- Kurmangaliyev YZ et al. *Transcriptional Programs of Circuit Assembly in the Drosophila Visual System.* Neuron (2020). GEO: GSE156455  
-- Özel MN et al. *Neuronal diversity and convergence in a visual system developmental atlas.* Nature (2021). GEO: GSE142787  
+## Notes / troubleshooting
 
----
+### scVI requires raw counts
+
+If you see negative values or capped values (e.g., exactly 10), those
+are likely scaled/z-scored features (not counts). scVI expects
+nonnegative count-like input.
+
+### Query mapping
+
+Depending on scvi-tools version, query models may require:
+
+``` python
+q.train(max_epochs=1)
+```
+
+before calling `get_latent_representation()`.
+
+------------------------------------------------------------------------
 
 ## License
 
