@@ -1,9 +1,9 @@
 # ChronoMate
 
 ChronoMate predicts ***Drosophila* developmental state (hours)** from a labeled **scRNA-seq** dataset
-and transfers that predictor across different datasets and samples using the following pipeline:
+and transfers that predictor across unlabeled datasets and samples from different experiments. 
 
-**Raw counts → scVI latent → XGBoost regression → evaluation + plots**
+**Pipeline: Raw counts → scVI latent → XGBoost regression → evaluation + plots**
 
 
 ---
