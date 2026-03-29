@@ -1,21 +1,19 @@
 # ChronoMate
 
-ChronoMate predicts **Drosophila developmental time (hours)** from **single-cell RNA-seq**
-and transfers that predictor across datasets/labs using a simple, robust pipeline:
+ChronoMate predicts ***Drosophila* developmental state (hours)** from a labeled **scRNA-seq** dataset
+and transfers that predictor across different datasets and samples using the following pipeline:
 
-**Raw counts → scVI latent (batch-aware) → XGBoost regression → evaluation + plots**
+**Raw counts → scVI latent → XGBoost regression → evaluation + plots**
 
-> Current stable workflow: **scVI → XGBoost**  
-> Older/legacy code paths (e.g., CSV z-score features, DANN) are not part of the recommended pipeline.
 
 ---
 
 ## What it does
 
-Given a labeled **TRAIN** dataset and a (possibly unlabeled) **TEST** dataset:
+Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset:
 
-1) Learn a batch-aware representation with **scVI (VAE)** on raw counts  
-2) Map TEST into the same latent space (query mapping)  
+1) Learn a batch-corrected representation with **scVI (VAE)** on raw counts  
+2) Map TEST into the same latent space  
 3) Train **XGBoost** on TRAIN latent to predict time (hours)  
 4) Predict + evaluate on TEST and generate plots  
 
@@ -24,22 +22,23 @@ Given a labeled **TRAIN** dataset and a (possibly unlabeled) **TEST** dataset:
 ## Data sources (GEO)
 
 **TRAIN (source):** Kurmangaliyev et al., *Neuron* 2020  
+- This is a time-series *Drosophila* single-cell dataset with samples from pupa (0h) to adult (96h) in 12h increments
 - GEO: GSE156455  
 - https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
 **TEST (target):** Özel et al., *Nature* 2021  
+- similar to train data but with different time points
 - GEO: GSE142787  
 - https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
 ---
 
-## Key idea: what “normalization” means here
+## What “normalization” means
 
 ChronoMate uses **scVI (scvi-tools)** to learn a **batch-aware latent embedding** from **raw counts**.
 
 - Input: nonnegative raw counts in `adata.layers["counts"]`
 - Features for regression: scVI latent `Z` (cells × latent_dim)
-- Optional: model-based normalized expression (not required for XGBoost)
 
 The regressor does **not** train on gene-level raw counts directly.  
 It trains on the **scVI latent representation**.
@@ -96,7 +95,7 @@ Example mean predicted time per true time (hours):
 | 50        | 49.12 |
 | 70        | 73.68 |
 
-Overall regression metrics (example):
+Overall regression metrics (sample-level):
 
 - MAE: **1.75 hours**
 - RMSE: **2.06 hours**
@@ -105,25 +104,21 @@ Overall regression metrics (example):
 - Within ±2h: **60%**
 - Within ±5h: **100%**
 
-> Note: The numbers above are an example summary computed on per-time means.
-> For reporting performance, prefer metrics computed over **all cells**.
-
----
-
-## Figure
-
-Place the generated figure image in your repo (example path shown below) and keep this link as-is:
+> For reporting performance, metrics can be computed over **all cells**.
 
 ![Figure: Predicted time vs actual time](./scVI_XGBoost.png)
+Figure 1: example of prediction performance using Chronocell
 
 ---
 
 ## Notes / troubleshooting
 
-### scVI requires raw counts
-If you see negative values or capped values (e.g., exactly 10), those are likely scaled/z-scored features (not counts).
-scVI expects nonnegative count-like input.
+### On organisms outside of *Drosophila*
+This tool is only guaranteed to work with *Drosophila* neuron data, for larger organisms like mouse or honey bees
 
+### scVI requires raw counts
+If you see negative values or floats, those are likely scaled/z-scored features and not counts.
+scVI expects nonnegative count-like input. Refer to the Seurat/Scanpy object and find the ['counts'] layer to proceed. 
 ### Query mapping
 Depending on scvi-tools version, query models may require:
 
