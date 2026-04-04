@@ -112,10 +112,10 @@ Figure 1: example of prediction performance using Chronocell
 
 ---
 
-## Notes / troubleshooting
+## Notes 
 
 ### On organisms outside of *Drosophila*
-This tool is only guaranteed to work with *Drosophila* neuron data, for larger organisms like mouse or honey bees
+This tool is only guaranteed to work with *Drosophila* neuron data, performance may drop for higher organisms like mouse or human due to higher variation between individuals in transcription profiles. 
 
 ### scVI requires raw counts
 If you see negative values or floats, those are likely scaled/z-scored features and not counts.
