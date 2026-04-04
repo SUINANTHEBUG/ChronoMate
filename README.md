@@ -12,7 +12,7 @@ and transfers that predictor across unlabeled datasets and samples from differen
 
 Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset for developmental state marked in hours, ChronocMate determines the **TEST** sample developmetal state with accuracy.  
 
-## Pipeline: 
+## Steps
 1) Learn a batch-corrected representation with **scVI (VAE)** on raw counts  
 2) Map TEST into the same latent space  
 3) Train **XGBoost** on TRAIN latent to predict time (hours)  
