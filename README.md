@@ -10,8 +10,9 @@ and transfers that predictor across unlabeled datasets and samples from differen
 
 ## What it does
 
-Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset:
+Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset for developmental state marked in hours, ChronocMate determines the **TEST** sample developmetal state with accuracy.  
 
+## Pipeline: 
 1) Learn a batch-corrected representation with **scVI (VAE)** on raw counts  
 2) Map TEST into the same latent space  
 3) Train **XGBoost** on TRAIN latent to predict time (hours)  
@@ -33,7 +34,7 @@ Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset:
 
 ---
 
-## What “normalization” means
+## Batch-correction
 
 ChronoMate uses **scVI (scvi-tools)** to learn a **batch-aware latent embedding** from **raw counts**.
 
