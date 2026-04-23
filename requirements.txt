@@ -1,13 +1,10 @@
 # requirements.txt
-# Core
 numpy>=1.23
 pandas>=1.5
 scikit-learn>=1.2
 joblib>=1.2
 matplotlib>=3.6
-
 # Model
 xgboost>=1.7
-
-# CLI / packaging (optional but usually present)
+# CLI
 tqdm>=4.64
