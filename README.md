@@ -156,4 +156,4 @@ ChronoMate is currently intended for *Drosophila* neuron data. Performance may d
 
 ## License
 
-Add your project license here.
+MIT License
