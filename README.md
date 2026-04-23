@@ -1,90 +1,16 @@
 # ChronoMate
 
-ChronoMate predicts ***Drosophila* developmental state (hours)** from a labeled **scRNA-seq** dataset
-and transfers that predictor across unlabeled datasets and samples from different experiments. 
+ChronoMate predicts developmental time from single-cell RNA-seq using a two-step workflow:
 
-**Pipeline: Raw counts → scVI latent → XGBoost regression → evaluation + plots**
-
-
----
-
-## What it does
-
-Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset for developmental state marked in hours, ChronocMate determines the **TEST** sample developmetal state with accuracy.  
-
-## Steps
-1) Learn a batch-corrected representation with **scVI (VAE)** on raw counts  
-2) Map TEST into the same latent space  
-3) Train **XGBoost** on TRAIN latent to predict time (hours)  
-4) Predict + evaluate on TEST and generate plots  
+1. **scVI** learns a latent embedding from **raw counts**
+2. **XGBoost** predicts developmental time from the scVI latent space
 
 ---
 
-## Data sources (GEO)
+## Example results
 
-**TRAIN (source):** Kurmangaliyev et al., *Neuron* 2020  
-- This is a time-series *Drosophila* single-cell dataset with samples from pupa (P0) to adult (P96) in 12h increments
-- GEO: GSE156455  
-- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
-
-**TEST (target):** Özel et al., *Nature* 2021  
-- similar to train data with time points P15, P30, P40, P50, P70. 
-- GEO: GSE142787  
-- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
-
----
-
-## Batch-correction
-
-ChronoMate uses **scVI (scvi-tools)** to learn a **batch-aware latent embedding** from **raw counts**.
-
-- Input: nonnegative raw counts in `adata.layers["counts"]`
-- Features for regression: scVI latent `Z` (cells × latent_dim)
-
-The regressor does **not** train on gene-level raw counts directly.  
-It trains on the **scVI latent representation**.
-
----
-
-## Installation
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\Activate on Windows
-pip install -r requirements.txt
-```
-
-Verify installation:
-
-```bash
-python -m chronomate.cli --help
-```
-
----
-
-## Quick start (CLI)
-
-### 1) Export scVI latents
-
-```bash
-python -m chronomate.cli scvi-export-latent   --train-h5ad path/to/train_counts.h5ad   --test-h5ad  path/to/test_counts.h5ad   --model-dir  path/to/scvi_model   --out-train-csv train_latent.csv   --out-test-csv  test_latent.csv   --query-max-epochs 1
-```
-
-### 2) Train XGBoost + predict
-
-```bash
-python -m chronomate.cli train-xgb-latent   --train-latent train_latent.csv   --test-latent  test_latent.csv   --outdir runs/xgb_on_scvi_latent
-```
-
-### 3) Evaluate
-
-```bash
-python -m chronomate.cli eval   --predictions runs/xgb_on_scvi_latent/predictions.csv   --outdir runs/xgb_on_scvi_latent/eval
-```
-
----
-
-## Example results (scVI → XGBoost)
+![Figure: Predicted time vs actual time](./Sample_eval.png)  
+Figure 1: Sample-level prediction performance
 
 | Sample | True Time (h) | Predicted (h) | Error (h) | Abs Error (h) | # Cells |
 |--------|---------------|---------------|-----------|---------------|--------:|
@@ -126,32 +52,108 @@ python -m chronomate.cli eval   --predictions runs/xgb_on_scvi_latent/prediction
 - R²: **0.944**
 - n = **164,279 cells**
 
-> For reporting performance, metrics can be computed over **all cells**.
-
-![Figure: Predicted time vs actual time](./scVI_XGBoost.png)
-Figure 1: example of prediction performance using Chronocell
+![Figure: Predicted time vs actual time](./scVI_XGBoost.png)  
+Figure 2: Overall prediction distribution
 
 ---
 
-## Notes 
+## Data sources
 
-### On organisms outside of *Drosophila*
-This tool is only guaranteed to work with *Drosophila* neuron data, performance may drop for higher organisms like mouse or human due to higher variation between individuals in transcription profiles. 
+**TRAIN:** Kurmangaliyev et al., *Neuron* 2020  
+- Time-series *Drosophila* single-cell dataset from pupa (P0) to adult (P96) in 12 h increments
+- GEO: GSE156455  
+- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
-### scVI requires raw counts
-If you see negative values or floats, those are likely scaled/z-scored features and not counts.
-scVI expects nonnegative count-like input. Refer to the Seurat/Scanpy object and find the ['counts'] layer to proceed. 
-### Query mapping
-Depending on scvi-tools version, query models may require:
+**TEST:** Özel et al., *Nature* 2021  
+- *Drosophila* single-cell dataset with time points P15, P30, P40, P50, P70
+- GEO: GSE142787  
+- https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
-```python
-q.train(max_epochs=1)
+---
+
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
 ```
 
-before calling `get_latent_representation()`.
+Verify installation:
+
+```bash
+python -m chronomate.cli --help
+```
+
+---
+
+## Quick start
+
+### 1) Prepare input data
+
+You need:
+
+- `train_counts.h5ad`
+- `test_counts.h5ad`
+
+Expected structure:
+- cells in rows
+- genes in columns
+- raw nonnegative counts in `adata.layers["counts"]`
+
+Expected `adata.obs` columns:
+- `cell_id` — used to track cells across latent export, prediction, and evaluation
+- `time` — required for regression target and evaluation
+- `rep` — required if using batch-aware scVI with `batch_key="rep"`
+- `type` — optional
+
+If `rep` is not available, scVI can still run without explicit batch correction.
+
+### 2) Export scVI latent embeddings
+
+```bash
+python -m chronomate.cli scvi-export-latent \
+  --train-h5ad path/to/train_counts.h5ad \
+  --test-h5ad path/to/test_counts.h5ad \
+  --model-dir path/to/scvi_model \
+  --out-train-csv train_latent.csv \
+  --out-test-csv test_latent.csv \
+  --query-max-epochs 1
+```
+
+### 3) Train XGBoost and predict time
+
+```bash
+python -m chronomate.cli train-xgb-latent \
+  --train-latent train_latent.csv \
+  --test-latent test_latent.csv \
+  --outdir runs/xgb_on_scvi_latent
+```
+
+### 4) Evaluate predictions
+
+```bash
+python -m chronomate.cli eval \
+  --predictions runs/xgb_on_scvi_latent/predictions.csv \
+  --outdir runs/xgb_on_scvi_latent/eval
+```
+
+---
+
+## Notes
+
+scVI uses raw counts from `adata.layers["counts"]`. If your matrix contains negative values, scaled values, log-normalized values, or z-scored values, it is not valid scVI input.
+
+ChronoMate uses the scVI latent embedding for regression. XGBoost trains on `z1 ... zN`, not directly on gene-level counts.
+
+If a batch column such as `rep` is provided, scVI can run batch-aware integration with `batch_key="rep"`. If not, it can still run without explicit batch correction.
+
+Depending on `scvi-tools` version, query mapping may require `q.train(max_epochs=1)` before `q.get_latent_representation()`.
+
+ChronoMate is currently intended for *Drosophila* neuron data. Performance may drop on higher-variation datasets such as mouse or human.
 
 ---
 
 ## License
 
-MIT
+Add your project license here.
