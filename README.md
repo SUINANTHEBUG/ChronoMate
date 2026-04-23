@@ -23,12 +23,12 @@ Given a labeled **TRAIN** dataset and a unlabeled **TEST** dataset for developme
 ## Data sources (GEO)
 
 **TRAIN (source):** Kurmangaliyev et al., *Neuron* 2020  
-- This is a time-series *Drosophila* single-cell dataset with samples from pupa (0h) to adult (96h) in 12h increments
+- This is a time-series *Drosophila* single-cell dataset with samples from pupa (P0) to adult (P96) in 12h increments
 - GEO: GSE156455  
 - https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE156455
 
 **TEST (target):** Özel et al., *Nature* 2021  
-- similar to train data but with different time points
+- similar to train data with time points P15, P30, P40, P50, P70. 
 - GEO: GSE142787  
 - https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142787
 
